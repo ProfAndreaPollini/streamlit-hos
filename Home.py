@@ -5,6 +5,7 @@ import pandas as pd
 import plotly.figure_factory as ff
 
 from enum import Enum
+import datetime
 
 class StatoValvola(Enum):
     APERTA = 1
@@ -73,7 +74,7 @@ if "t_ambiente" not in st.session_state:
 if "t_pannello_pilota" not in st.session_state:
     st.session_state["t_pannello_pilota"] = 35.0
 
-# @st.cache_data
+
 def update_data():
     if 'temperature' in st.session_state:
         st.session_state['temperature_old'] = st.session_state['temperature']
@@ -90,12 +91,13 @@ def update_data():
         st.session_state['t_pannello_pilota_old'] = st.session_state['t_pannello_pilota']
     else:
         st.session_state['t_pannello_pilota_old'] = 0
-    conn = sq.connect('db.sqlite')
+    conn = sq.connect('..\db.sqlite')
     c = conn.cursor()
-    c.execute('SELECT * FROM misurazioni ORDER BY orario DESC LIMIT 1 OFFSET 110')
+    c.execute('SELECT * FROM misurazioni ORDER BY orario DESC LIMIT 1')
     res = c.fetchone()
-    st.table(res)
+    
     st.session_state['temperature'] = res[2:13]
+    st.session_state["last_timestamp"] = res[1]
     
     st.session_state['t_ambiente'] = res[13]
     # st.session_state['t_ambiente_old'] = res[13]
@@ -108,13 +110,28 @@ def update_data():
 
 update_data()
 
+import asyncio
 
+msg = st.empty()
+
+async def watch(msg):
+
+    while True:
+        # update_data()
+        msg.markdown(f"**Ultimo aggiornamento**:{datetime.datetime.now()} ",unsafe_allow_html=True   )
+        r = await asyncio.sleep(60*5)
+        update_data()
+
+
+
+
+st.markdown(f"**orario ultima misurazione**: {st.session_state['last_timestamp']}")
 
 get_stato_valvole()
 
 st.sidebar.markdown(""" ## Azioni""")
-if st.sidebar.button("Aggiorna valvole"):
-    st.session_state['valvole'] = np.random.choice(list(StatoValvola),len(st.session_state['valvole']))
+if st.sidebar.button("Aggiorna dati"):
+    # st.session_state['valvole'] = np.random.choice(list(StatoValvola),len(st.session_state['valvole']))
     update_data()
     
 import plotly.graph_objects as go
@@ -201,3 +218,5 @@ fig.append_trace(fig_t_amb,row=1,col=1)
 fig.append_trace(fig_t_pannello_pilota,row=1,col=2)
 
 st.plotly_chart(fig,use_container_width=True)
+
+asyncio.run(watch(msg))
